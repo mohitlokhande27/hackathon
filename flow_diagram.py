@@ -1,145 +1,161 @@
 """
-Flow Diagram Generator for the Multi-Agent NL-to-Code System
-Run: python3 flow_diagram.py
-Saves: flow_diagram.png
+Flow Diagram — Python Code Generator + Test Case Generator
+Architecture: LangGraph + Groq (SimpleAgent pattern)
+Run: python3 flow_diagram.py  →  saves flow_diagram.png
 """
 
 import subprocess, sys
 
-def install(pkg):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pkg])
-
 try:
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
-    from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+    from matplotlib.patches import FancyBboxPatch
 except ImportError:
-    install("matplotlib")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "matplotlib"])
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
-    from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+    from matplotlib.patches import FancyBboxPatch
 
 
-def draw_box(ax, x, y, w, h, label, sublabel="", color="#4A90D9", text_color="white", radius=0.3):
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def draw_box(ax, x, y, w, h, label, sublabel="", color="#4A90D9",
+             text_color="white", radius=0.25, fontsize=9):
     box = FancyBboxPatch(
-        (x - w/2, y - h/2), w, h,
+        (x - w / 2, y - h / 2), w, h,
         boxstyle=f"round,pad=0.05,rounding_size={radius}",
-        facecolor=color, edgecolor="#2C3E50", linewidth=1.5, zorder=3
+        facecolor=color, edgecolor="#2C3E50", linewidth=1.5, zorder=3,
     )
     ax.add_patch(box)
-    ax.text(x, y + (0.12 if sublabel else 0), label,
-            ha="center", va="center", fontsize=9, fontweight="bold",
-            color=text_color, zorder=4)
+    offset = 0.13 if sublabel else 0
+    ax.text(x, y + offset, label, ha="center", va="center",
+            fontsize=fontsize, fontweight="bold", color=text_color, zorder=4)
     if sublabel:
-        ax.text(x, y - 0.18, sublabel,
-                ha="center", va="center", fontsize=7, color=text_color, zorder=4, style="italic")
+        ax.text(x, y - 0.17, sublabel, ha="center", va="center",
+                fontsize=7, color=text_color, zorder=4, style="italic")
 
 
-def arrow(ax, x1, y1, x2, y2, label="", color="#2C3E50"):
+def straight_arrow(ax, x1, y1, x2, y2, label="", label_dx=0.12,
+                   color="#2C3E50", lw=1.6):
     ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-                arrowprops=dict(arrowstyle="-|>", color=color, lw=1.5), zorder=2)
+                arrowprops=dict(arrowstyle="-|>", color=color, lw=lw), zorder=2)
     if label:
-        mx, my = (x1+x2)/2, (y1+y2)/2
-        ax.text(mx + 0.08, my, label, fontsize=7, color="#555", va="center", zorder=5)
+        ax.text((x1 + x2) / 2 + label_dx, (y1 + y2) / 2,
+                label, fontsize=7.5, color=color, fontweight="bold",
+                va="center", zorder=5)
 
 
-fig, ax = plt.subplots(figsize=(14, 10))
-ax.set_xlim(0, 14)
-ax.set_ylim(0, 10)
+def curved_arrow(ax, x1, y1, x2, y2, label="", rad=0.35,
+                 color="#C0392B", lw=1.6, label_offset=(0, 0)):
+    ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
+                arrowprops=dict(arrowstyle="-|>", color=color, lw=lw,
+                                connectionstyle=f"arc3,rad={rad}"), zorder=2)
+    if label:
+        ax.text((x1 + x2) / 2 + label_offset[0],
+                (y1 + y2) / 2 + label_offset[1],
+                label, fontsize=7.5, color=color, fontweight="bold",
+                va="center", zorder=5)
+
+
+# ── Canvas ────────────────────────────────────────────────────────────────────
+
+fig, ax = plt.subplots(figsize=(13, 11))
+ax.set_xlim(0, 13)
+ax.set_ylim(0, 11)
 ax.axis("off")
-ax.set_facecolor("#F8F9FA")
-fig.patch.set_facecolor("#F8F9FA")
+ax.set_facecolor("#F4F6F8")
+fig.patch.set_facecolor("#F4F6F8")
 
-ax.text(7, 9.6, "Multi-Agent Natural Language to Code System",
+# Title
+ax.text(6.5, 10.65, "Python Code Generator + Test Case Generator",
         ha="center", va="center", fontsize=14, fontweight="bold", color="#2C3E50")
-ax.text(7, 9.25, "LangGraph + Claude (Anthropic)  •  Scaler x IITR Hackathon",
-        ha="center", va="center", fontsize=9, color="#7F8C8D")
+ax.text(6.5, 10.3, "LangGraph  •  SimpleAgent Pattern  •  Groq  •  Scaler x IITR Hackathon",
+        ha="center", va="center", fontsize=8.5, color="#7F8C8D")
 
-# ── Nodes ──────────────────────────────────────────────────────────────────────
+# ── Nodes (top → bottom, centred at x=6.5) ───────────────────────────────────
 
-# User
-draw_box(ax, 7, 8.5, 2.8, 0.55, "User / Natural Language Request", color="#ECF0F1", text_color="#2C3E50")
+# 1. User
+draw_box(ax, 6.5, 9.7, 3.2, 0.5, "User Request",
+         sublabel="Natural language description", color="#BDC3C7", text_color="#2C3E50")
 
-# Gradio UI
-draw_box(ax, 7, 7.6, 3.0, 0.55, "Gradio Chat Interface", sublabel="(+10 bonus points)", color="#8E44AD")
+# 2. Gradio
+draw_box(ax, 6.5, 8.75, 3.4, 0.55, "Gradio Chat Interface",
+         sublabel="Chat UI  •  localhost:7860", color="#8E44AD")
 
-# Router Agent
-draw_box(ax, 7, 6.6, 3.2, 0.6, "Router Agent", sublabel="Classify: Python | SQL  &  task type", color="#E74C3C")
+# 3. Requirements Extractor  (LangGraph node — plain LLM call)
+draw_box(ax, 6.5, 7.7, 3.6, 0.65, "Requirements Extractor",
+         sublabel="LangGraph Node  •  LLM extracts structured spec", color="#E67E22")
 
-# Requirements Agent
-draw_box(ax, 7, 5.6, 3.2, 0.6, "Requirements Agent", sublabel="Extract: name, params, edge cases", color="#E67E22")
+# 4. Code Generator Agent  (SimpleAgent)
+draw_box(ax, 6.5, 6.5, 3.6, 0.75, "Code Generator Agent",
+         sublabel="SimpleAgent  •  No tools  •  Generates Python code", color="#27AE60")
 
-# Python Code Agent
-draw_box(ax, 3.5, 4.4, 2.8, 0.65, "Python Code Agent", sublabel="Generate Python function/class", color="#27AE60")
+# 5. Test Generator Agent  (SimpleAgent)
+draw_box(ax, 6.5, 5.3, 3.6, 0.75, "Test Generator Agent",
+         sublabel="SimpleAgent  •  No tools  •  Writes pytest test cases", color="#2980B9")
 
-# SQL Code Agent
-draw_box(ax, 10.5, 4.4, 2.8, 0.65, "SQL Code Agent", sublabel="Generate SQL query + wrapper", color="#16A085")
+# 6. Code Executor  (LangGraph node using RunCode Tool)
+draw_box(ax, 6.5, 4.0, 3.6, 0.75, "Code Executor Node",
+         sublabel="Uses  RunCode Tool  •  Subprocess sandbox", color="#8E44AD")
 
-# Test Gen Agent
-draw_box(ax, 7, 3.3, 3.2, 0.6, "Test Generation Agent", sublabel="pytest unit tests + assert cases", color="#2980B9")
+# RunCode Tool badge (small box hanging off the executor)
+draw_box(ax, 10.5, 4.0, 2.2, 0.5, "RunCode Tool",
+         sublabel="LangChain Tool", color="#6C3483", fontsize=8)
 
-# Code Executor Agent
-draw_box(ax, 7, 2.2, 3.2, 0.6, "Code Executor Agent", sublabel="Run code & tests in subprocess sandbox", color="#8E44AD")
+# 7. Response Node
+draw_box(ax, 6.5, 2.7, 3.6, 0.65, "Response Node",
+         sublabel="Formats code + tests + execution results", color="#2C3E50")
 
-# Refinement Agent
-draw_box(ax, 11.5, 2.2, 2.6, 0.6, "Refinement Agent", sublabel="Fix code on failure (max 2x)", color="#C0392B")
+# 8. Final output
+draw_box(ax, 6.5, 1.7, 3.2, 0.5, "Final Response to User",
+         color="#BDC3C7", text_color="#2C3E50")
 
-# Response Agent
-draw_box(ax, 7, 1.1, 3.2, 0.6, "Response Agent", sublabel="Format final output with results", color="#2C3E50")
+# ── Arrows ────────────────────────────────────────────────────────────────────
 
-# Final Output
-draw_box(ax, 7, 0.25, 3.5, 0.4, "Final Response to User", color="#ECF0F1", text_color="#2C3E50")
+straight_arrow(ax, 6.5, 9.45, 6.5, 9.03)              # user → gradio
+straight_arrow(ax, 6.5, 8.48, 6.5, 8.03)              # gradio → requirements
+straight_arrow(ax, 6.5, 7.37, 6.5, 6.88)              # requirements → code gen
+straight_arrow(ax, 6.5, 6.12, 6.5, 5.68)              # code gen → test gen
+straight_arrow(ax, 6.5, 4.93, 6.5, 4.38)              # test gen → executor
+straight_arrow(ax, 6.5, 3.63, 6.5, 3.03,              # executor → response (PASS)
+               label="PASS", label_dx=0.15, color="#27AE60")
+straight_arrow(ax, 6.5, 2.37, 6.5, 1.95)              # response → final output
 
-# ── Arrows ─────────────────────────────────────────────────────────────────────
+# RunCode Tool connector (dashed line from executor to tool badge)
+ax.annotate("", xy=(9.38, 4.0), xytext=(8.3, 4.0),
+            arrowprops=dict(arrowstyle="-|>", color="#6C3483", lw=1.4,
+                            linestyle="dashed"), zorder=2)
+ax.text(8.84, 4.18, "calls", fontsize=7, color="#6C3483", ha="center", zorder=5)
 
-arrow(ax, 7, 8.22, 7, 7.88)                          # user → gradio
-arrow(ax, 7, 7.32, 7, 6.9)                            # gradio → router
-arrow(ax, 7, 6.3, 7, 5.9)                             # router → requirements
+# Retry loop: executor → code gen (FAIL, curved, right side)
+curved_arrow(ax, 8.3, 4.0, 8.3, 6.5,
+             label="FAIL\n(retry < 3)", rad=-0.0,
+             color="#C0392B", label_offset=(0.55, -1.2))
 
-# requirements → python (fork left)
-arrow(ax, 5.4, 5.3, 4.1, 4.73, "Python", "#27AE60")
-# requirements → sql (fork right)
-arrow(ax, 8.6, 5.3, 9.9, 4.73, "SQL", "#16A085")
+# vertical line on right side for retry
+ax.plot([8.3, 8.3], [4.0, 6.5], color="#C0392B", lw=1.6, zorder=1, linestyle="--")
+ax.annotate("", xy=(8.3, 6.5), xytext=(8.3, 4.0),
+            arrowprops=dict(arrowstyle="-|>", color="#C0392B", lw=1.6), zorder=2)
 
-# python + sql → test gen
-arrow(ax, 3.7, 4.07, 5.4, 3.6, "", "#27AE60")
-arrow(ax, 10.3, 4.07, 8.6, 3.6, "", "#16A085")
+# Max retries label on executor → response path
+ax.text(5.2, 3.35, "max retries\nreached", fontsize=7, color="#C0392B",
+        ha="center", va="center", style="italic", zorder=5)
 
-arrow(ax, 7, 3.0, 7, 2.5)                             # test gen → executor
-arrow(ax, 7, 1.9, 7, 1.4)                             # executor → response (pass)
-
-# executor → refinement (fail)
-ax.annotate("", xy=(11.5, 2.5), xytext=(8.6, 2.2),
-            arrowprops=dict(arrowstyle="-|>", color="#C0392B", lw=1.5,
-                            connectionstyle="arc3,rad=-0.3"), zorder=2)
-ax.text(10.0, 2.55, "FAIL", fontsize=7.5, color="#C0392B", fontweight="bold")
-
-# refinement → test gen (retry loop)
-ax.annotate("", xy=(8.6, 3.3), xytext=(11.5, 2.5),
-            arrowprops=dict(arrowstyle="-|>", color="#C0392B", lw=1.5,
-                            connectionstyle="arc3,rad=-0.3"), zorder=2)
-ax.text(10.6, 3.1, "retry", fontsize=7, color="#C0392B", style="italic")
-
-# executor → response pass label
-ax.text(7.45, 1.65, "PASS", fontsize=7.5, color="#27AE60", fontweight="bold")
-
-arrow(ax, 7, 0.8, 7, 0.45)                            # response → output
-
-# ── Legend ─────────────────────────────────────────────────────────────────────
+# ── Legend ────────────────────────────────────────────────────────────────────
 
 legend_items = [
-    mpatches.Patch(color="#E74C3C", label="Router Agent"),
-    mpatches.Patch(color="#E67E22", label="Requirements Agent"),
-    mpatches.Patch(color="#27AE60", label="Python Code Agent"),
-    mpatches.Patch(color="#16A085", label="SQL Code Agent"),
-    mpatches.Patch(color="#2980B9", label="Test Generation Agent"),
-    mpatches.Patch(color="#8E44AD", label="Code Executor / Gradio"),
-    mpatches.Patch(color="#C0392B", label="Refinement Agent"),
+    mpatches.Patch(color="#E67E22", label="LangGraph Node (plain LLM)"),
+    mpatches.Patch(color="#27AE60", label="Code Generator Agent (SimpleAgent)"),
+    mpatches.Patch(color="#2980B9", label="Test Generator Agent (SimpleAgent)"),
+    mpatches.Patch(color="#8E44AD", label="Code Executor Node"),
+    mpatches.Patch(color="#6C3483", label="RunCode Tool (LangChain Tool)"),
+    mpatches.Patch(color="#2C3E50", label="Response Node"),
+    mpatches.Patch(color="#C0392B", label="Retry loop (max 3)"),
 ]
 ax.legend(handles=legend_items, loc="lower left", fontsize=7.5,
-          framealpha=0.9, ncol=2, bbox_to_anchor=(0.01, 0.01))
+          framealpha=0.95, ncol=2, bbox_to_anchor=(0.0, 0.0))
 
 plt.tight_layout()
-plt.savefig("flow_diagram.png", dpi=150, bbox_inches="tight", facecolor="#F8F9FA")
+plt.savefig("flow_diagram.png", dpi=150, bbox_inches="tight", facecolor="#F4F6F8")
 print("Saved: flow_diagram.png")
 plt.show()
